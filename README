@@ -1,0 +1,61 @@
+ngx_tracer_module
+-----------------
+
+About
+-----
+
+The module allows to trace nginx function calls. Function calls are are traced
+by the means of GCC instrumentation.
+
+
+Requirements
+------------
+1) amd64 arch
+2) GCC compiler (clang also works, but no support for dumping arguments)
+
+3) either 'nm' utility or libbfd to build symbol table
+
+4) [optional] libbfd - to decode caller address to line number
+
+5) [optional] 'readelf' utility - to extract DWARF v.4 from binary, obtain
+   function definitions and decode passed arguments and return values
+
+6) no optimizations should be enabled (-O0), debugging symbols must be included
+   into the binary; arguments extraction code depends on them being pushed
+   to stack in compiler-specific manner.
+
+FreeBSD notes:
+
+- install recent readelf, not base one
+- to have libbfd support build 'binutils' port and provide
+  a path to 'work' directory in the 'config'.
+
+Usage
+-----
+
+nginx$ ./auto/configure --add-module=../ngx_tracer_module
+
+The 'config' file contains list of functions that
+are filtered out from trace by default, to decrease
+mess by skipping low-level functions like memory copying
+or hash manipulations that are not very interesting.
+
+Upon start, module is invoked before main(), reads nginx binary to get
+symbols and start tracing. Results are in logs/trace-worker|master-PID.log
+
+The information dumped is a unix timestamp in usecs,
+process PID, function itself and caller function names.
+
+Example output:
+
+            +-  PID of a process   ++- function arguments     called from file:line -+
+           /                      //                                                  \
+0.214827 [46174]  { small(a=3, b=66666666, c=U, f=3.14, p=0x408a7d) from main at nginx.c:192
+ \                   \                                                   /
+  +- usec from start  +- function name           caller function name  -+
+
+0.215119 [46174]  [done:small = 66666669]}
+                    \               \
+                     +- completed    +- return value
+
+

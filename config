@@ -1,0 +1,124 @@
+ngx_addon_name=tracer
+
+CORE_MODULES="$CORE_MODULES ngx_tracer_module"
+
+NGX_ADDON_SRCS="$NGX_ADDON_SRCS                             \
+                $ngx_addon_dir/src/ngx_tracer_module.c      \
+                $ngx_addon_dir/src/ngx_tracer_mem.c"
+
+NGX_ADDON_DEPS="$NGX_ADDON_DEPS                             \
+                $ngx_addon_dir/src/ngx_tracer.h"
+
+# never instrument this module itself and system headers
+# (beware of inline functions in headers included both in target and tracer)
+EXCLUDED_FILES="/usr/include,src/ngx_tracer_module.c,src/ngx_tracer_mem.c,src/ngx_tracer.h"
+
+case "$NGX_PLATFORM" in
+
+    FreeBSD:*)
+        TOOLPATH=/usr/local/bin
+        echo " + tracer: configuring for FreeBSD..."
+
+        # requires built binutils for libbfd and libiberty
+        BU=/usr/ports/devel/binutils/work/binutils-2.25.1
+        if [ -d $BU ]; then
+            NGX_TRACER_HAVE_LIBBFD=yes
+            CFLAGS="$CFLAGS -I$BU -I$BU/bfd -I$BU/include"
+            SLIBS="$BU/bfd/libbfd.a $BU/libiberty/libiberty.a"
+            CORE_LIBS="$CORE_LIBS $SLIBS -lz -lintl"
+            echo " + tracer: binutils sources found, enabled libbfd support"
+        else
+            NGX_TRACER_HAVE_LIBBFD=no
+            echo " + tracer: no binutils sources found, libbfd support disabled "
+        fi
+    ;;
+
+    *)
+        echo " + tracer: configuring for generic system..."
+        NGX_TRACER_HAVE_LIBBFD=yes
+        echo " + tracer: libbfd support enabled by default"
+        TOOLPATH=/usr/bin
+        CORE_LIBS="$CORE_LIBS -lbfd"
+    ;;
+esac
+
+if [ -x $TOOLPATH/readelf ]; then
+    # recent readelf that able to process DWARF4
+    NGX_TRACER_HAVE_READELF=yes
+    echo " + tracer: readelf found in '$TOOLPATH/readelf'"
+else
+    NGX_TRACER_HAVE_READELF=no
+    echo " + tracer: no readelf in '$TOOLPATH'"
+fi
+
+if [ -x $TOOLPATH/nm ]; then
+    NGX_TRACER_HAVE_NM=yes
+    echo " + tracer: nm found in '$TOOLPATH/nm'"
+else
+    NGX_TRACER_HAVE_NM=no
+    echo " + tracer: nm not found in '$TOOLPATH'"
+fi
+
+
+# disable autodetection and force desired mode
+#NGX_TRACER_HAVE_LIBBFD=no
+#NGX_TRACER_HAVE_READELF=no
+
+if [ $NGX_TRACER_HAVE_LIBBFD = yes ]; then
+    NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/src/ngx_tracer_symtab_bfd.c"
+    EXCLUDED_FILES="$EXCLUDED_FILES,src/ngx_tracer_symtab_bfd.c"
+    have=NGX_HAVE_LIBBFD . auto/have
+else
+    if [ $NGX_TRACER_HAVE_NM = no ]; then
+        echo " + tracer: no libbfd support and no nm found, stop here"
+        exit 1
+    fi
+    echo " + tracer: no libbfd support, fallback to nm for symbols loading"
+    NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/src/ngx_tracer_symtab_nm.c"
+    EXCLUDED_FILES="$EXCLUDED_FILES,src/ngx_tracer_symtab_nm.c"
+    have=NGX_TRACER_NM_PATH value=\"$TOOLPATH/nm\" . auto/define
+fi
+
+if [ $NGX_TRACER_HAVE_READELF = yes ]; then
+    NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/src/ngx_tracer_readelf.c"
+    EXCLUDED_FILES="$EXCLUDED_FILES,src/ngx_tracer_readelf.c"
+    have=NGX_HAVE_READELF . auto/have
+    have=NGX_TRACER_READELF_PATH value=\"$TOOLPATH/readelf\" . auto/define
+else
+    echo " + tracer: no readelf, arguments decoding is not available"
+fi
+
+
+# skip this function as non-interesting/lowlevel/too verbose
+EXCLUDED_FUNCTIONS="\
+ngx_pcalloc,\
+ngx_palloc,\
+ngx_alloc,\
+ngx_sprintf,\
+ngx_vslprintf,\
+ngx_gmtime,\
+ngx_cpystrn,\
+ngx_array_push,\
+ngx_list_push,\
+ngx_strncasecmp,\
+ngx_strlow,\
+ngx_pnalloc,\
+ngx_hash_key_lc,\
+ngx_hash_add_key,\
+ngx_regex_exec_array,\
+ngx_hash_key,\
+ngx_strcasecmp,\
+ngx_localtime,\
+ngx_pstrdup,\
+ngx_hextoi,\
+ngx_slprintf,\
+ngx_write_fd\
+"
+EXOPTS="-finstrument-functions-exclude-function-list=$EXCLUDED_FUNCTIONS -finstrument-functions-exclude-file-list=$EXCLUDED_FILES"
+
+# for gcc, add excludes for files and functions
+if [ ! -z "$NGX_GCC_VER" ]; then
+    CFLAGS="$CFLAGS $EXOPTS -DNGXT_GCC"
+fi
+
+CFLAGS="$CFLAGS -O0 -finstrument-functions"
