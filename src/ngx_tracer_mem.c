@@ -87,8 +87,6 @@ static ngxt_type_handler_pt  ngxt_type_handlers[] = {
 void
 ngxt_mem_init()
 {
-    int  rc;
-
     nullfd = open(NGXT_WRT_DEV, NGXT_WRT_DEV_FLAGS, NGXT_WRT_DEV_MODE);
 
     if (nullfd == -1) {
@@ -96,9 +94,13 @@ ngxt_mem_init()
     }
 
 #if (NGX_FREEBSD)
+    {
+    int  rc;
+
     rc = unlink(NGXT_WRT_DEV);
     if (rc == -1) {
         ngxt_die(errno, "failed to unlink '%s'", NGXT_WRT_DEV);
+    }
     }
 #endif
 }
