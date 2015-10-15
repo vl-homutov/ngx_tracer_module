@@ -116,6 +116,9 @@ static char *ngxt_line_types[] = {
     NULL
 };
 
+
+#if (NGX_TRACER_DUMP_ARGS)
+
 static char *ngxt_known_types[] = {
     "char",                             /* NGXT_TYPE_HINT_CHAR     */
     "ngx_str_t",                        /* NGXT_TYPE_HINT_NGXSTR   */
@@ -124,12 +127,16 @@ static char *ngxt_known_types[] = {
     NULL
 };
 
+#endif
+
 
 static ngxt_decl void ngxt_merge_symbols(ngxt_func_t **fp, int fcount,
     ngxt_func_symbol_t *symbols, int symcount);
 static ngxt_decl ngx_uint_t ngxt_get_tag(u_char *tag);
 static ngxt_decl ngx_uint_t ngxt_get_line_type(u_char *line);
+#if (NGX_TRACER_DUMP_ARGS)
 static ngxt_decl ngx_uint_t ngxt_get_hint_type(u_char *typename);
+#endif
 static ngxt_decl int ngxt_cmp_funcp(const void *a, const void *b);
 static ngxt_decl int ngxt_cmp_func_by_key(const void *key, const void *b);
 static ngxt_decl ngx_int_t ngxt_str2int(u_char *s, int base, ngx_int_t *result);
@@ -191,6 +198,8 @@ ngxt_get_line_type(u_char *line)
 }
 
 
+#if (NGX_TRACER_DUMP_ARGS)
+
 static ngx_uint_t
 ngxt_get_hint_type(u_char *typename)
 {
@@ -204,6 +213,8 @@ ngxt_get_hint_type(u_char *typename)
 
     return NGXT_TYPE_HINT_VOID;
 }
+
+#endif
 
 
 static ngxt_dwarf_type_t
@@ -249,12 +260,16 @@ ngxt_resolve_type(ngxt_die_t *dwarr, ngx_uint_t offset)
         type_offset = dwarr[type_offset].offset;
     }
 
+#if (NGX_TRACER_DUMP_ARGS)
     if (type_offset && dwarr[type_offset].name.data) {
         type.hint = ngxt_get_hint_type(dwarr[type_offset].name.data);
 
     } else {
         type.hint = 0;
     }
+#else
+    type.hint = 0;
+#endif
 
     return type;
 }

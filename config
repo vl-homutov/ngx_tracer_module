@@ -84,6 +84,10 @@ if [ $NGX_TRACER_HAVE_READELF = yes ]; then
     EXCLUDED_FILES="$EXCLUDED_FILES,src/ngx_tracer_readelf.c"
     have=NGX_HAVE_READELF . auto/have
     have=NGX_TRACER_READELF_PATH value=\"$TOOLPATH/readelf\" . auto/define
+
+    # comment out this line to disable arguments dump
+    # (the operation is very slow due to memory readability check)
+    have=NGX_TRACER_DUMP_ARGS . auto/have
 else
     echo " + tracer: no readelf, arguments decoding is not available"
 fi
