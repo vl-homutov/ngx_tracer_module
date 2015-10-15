@@ -37,8 +37,10 @@ ngxt_decl void __cyg_profile_func_exit(void *, void *);
 
 static ngxt_decl void  ngxt_init_log(const char* log_filename);
 static ngxt_decl void  ngxt_logmsg(char *msg);
+#if (NGX_HAVE_READELF)
 static ngxt_decl char *ngxt_dump_args(char *buf, char *last, char *frame,
     ngxt_func_t *fspec);
+#endif
 static ngxt_decl ngxt_func_symbol_t *ngxt_sym_from_addr(ngx_uint_t addr,
     ngxt_ctx_t *ctx, ngx_uint_t range);
 
@@ -311,6 +313,8 @@ ngxt_sym_from_addr(ngx_uint_t addr, ngxt_ctx_t *ctx, ngx_uint_t range)
 }
 
 
+#if (NGX_HAVE_READELF)
+
 static char *
 ngxt_dump_args(char *buf, char* last, char *frame, ngxt_func_t *fspec)
 {
@@ -354,6 +358,8 @@ ngxt_dump_args(char *buf, char* last, char *frame, ngxt_func_t *fspec)
 
     return p;
 }
+
+#endif
 
 
 void
