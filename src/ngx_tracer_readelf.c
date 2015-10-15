@@ -46,6 +46,7 @@ typedef enum {
     NGXT_DW_TAG_formal_parameter,
     NGXT_DW_TAG_subprogram,
     NGXT_DW_TAG_typedef,
+    NGXT_DW_TAG_const_type,
     NGXT_DW_TAG_OTHER,
     /* TODO: NGXT_DW_TAG_unspecified_parameters - f(x,...) - variable args */
 } ngxt_dwarf_tags_t;
@@ -101,6 +102,7 @@ static char *ngxt_die_tags[] = {
     "DW_TAG_formal_parameter",
     "DW_TAG_subprogram",
     "DW_TAG_typedef",
+    "DW_TAG_const_type",
     NULL
 };
 
@@ -214,13 +216,13 @@ ngxt_resolve_type(ngxt_die_t *dwarr, ngx_uint_t offset)
 
     do {
         tag = dwarr[offset].tag;
-        if (tag == NGXT_DW_TAG_typedef) {
+
+        if (tag == NGXT_DW_TAG_typedef || tag == NGXT_DW_TAG_const_type) {
             type_offset = offset;
         }
         offset = dwarr[offset].offset;
 
     } while (!ngxt_type_is_final(tag));
-
 
     switch (tag) {
     case NGXT_DW_TAG_pointer_type:
@@ -241,6 +243,11 @@ ngxt_resolve_type(ngxt_die_t *dwarr, ngx_uint_t offset)
     type.encoding = dwarr[offset].encoding;
 
     /* take a look into pointed type... */
+
+    /* pointer to const: 'dereference' const to get actual 'pointed' type */
+    if (type_offset && dwarr[type_offset].tag == NGXT_DW_TAG_const_type) {
+        type_offset = dwarr[type_offset].offset;
+    }
 
     if (type_offset && dwarr[type_offset].name.data) {
         type.hint = ngxt_get_hint_type(dwarr[type_offset].name.data);
@@ -727,9 +734,9 @@ ngxt_parse_line(ngxt_die_parser_state_t *ctx, u_char *line, size_t len)
 static ngxt_func_t**
 ngxt_extract_functions(ngxt_die_parser_state_t *ctx)
 {
-    ngxt_func_arg_t       *param;
-    ngx_uint_t     i;
-    ngxt_func_t  *curr_func, **fp;
+    ngx_uint_t        i;
+    ngxt_func_t      *curr_func, **fp;
+    ngxt_func_arg_t  *param;
 
     /* resolve types in functions declarations */
     for (i = 0; i < ctx->max_offset; i++) {
