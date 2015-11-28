@@ -35,7 +35,7 @@ ngxt_decl void __attribute__ ((constructor)) premain();
 ngxt_decl void __cyg_profile_func_enter(void *, void *);
 ngxt_decl void __cyg_profile_func_exit(void *, void *);
 
-static ngxt_decl void  ngxt_init_log(const char* log_filename);
+ngxt_decl void  ngxt_init_log(const char* log_filename);
 static ngxt_decl void  ngxt_logmsg(char *msg);
 #if (NGX_HAVE_READELF)
 static ngxt_decl char *ngxt_dump_args(char *buf, char *last, char *frame,
@@ -45,7 +45,7 @@ static ngxt_decl ngxt_func_symbol_t *ngxt_sym_from_addr(ngx_uint_t addr,
     ngxt_ctx_t *ctx, ngx_uint_t range);
 
 
-static ngxt_ctx_t ngxt_ctx;
+ngxt_ctx_t ngxt_ctx;
 
 
 static ngx_core_module_t  ngx_tracer_module_ctx = {
@@ -207,13 +207,23 @@ gotname:
 }
 
 
-static void
+void
 ngxt_init_log(const char* log_filename)
 {
     char logfile[NGX_MAX_PATH];
 
+    ngxt_ctx.pid = getpid();
+
+#if (NGX_THREADS)
+    ngxt_ctx.procname = log_filename;
+    if (ngxt_thread_init_ctx() == NULL) {
+        ngxt_die(errno, "tracer: failed to init thread ctx");
+    }
+    return;
+#endif
+
     sprintf(logfile, "%s/logs/trace-%s-%lu.log", NGX_PREFIX, log_filename,
-                                                     (unsigned long) getpid());
+                                                 (unsigned long) ngxt_ctx.pid);
 
     ngxt_ctx.log = fopen(logfile, "a+");
     if (ngxt_ctx.log == NULL) {
@@ -252,10 +262,23 @@ ngxt_sprintf(char *buf, char *last, char* fmt, ...)
 static void
 ngxt_logmsg(char *msg)
 {
-    time_t          sec;
-    struct timeval  now;
+    FILE            *fstream;
+    time_t           sec;
+    struct timeval   now;
 
-    if (ngxt_ctx.log == NULL) {
+#if (NGX_THREADS)
+    ngxt_thread_ctx_t *tctx;
+
+    tctx = ngxt_thread_get_ctx();
+    if (tctx == NULL) {
+        return;
+    }
+    fstream = tctx->log;
+#else
+    fstream = ngxt_ctx.log;
+#endif
+
+    if (fstream == NULL) {
         return;
     }
 
@@ -271,11 +294,21 @@ ngxt_logmsg(char *msg)
         }
     }
 
-    fprintf(ngxt_ctx.log, "%lu.%06ld [%lu] %s",
-            now.tv_sec - ngxt_ctx.started.tv_sec,
-            now.tv_usec, (unsigned long) getpid(), msg);
+#if (NGX_THREADS)
+#define ngxt_fmt "%lu.%06ld [%lu:%lu] %s"
+#else
+#define ngxt_fmt "%lu.%06ld [%lu] %s"
+#endif
 
-    fflush(ngxt_ctx.log);
+    fprintf(fstream, ngxt_fmt,
+            now.tv_sec - ngxt_ctx.started.tv_sec,
+            now.tv_usec, (unsigned long) ngxt_ctx.pid,
+#if (NGX_THREADS)
+            (unsigned long) ngxt_ctx.tid,
+#endif
+            msg);
+
+    fflush(fstream);
 }
 
 
@@ -365,6 +398,7 @@ ngxt_dump_args(char *buf, char* last, char *frame, ngxt_func_t *fspec)
 void
 __cyg_profile_func_enter(void *this_fn, void *call_site)
 {
+    ngx_int_t           *depth;
     char                *p, *last;
     ngxt_func_symbol_t  *fsym;
 
@@ -373,14 +407,25 @@ __cyg_profile_func_enter(void *this_fn, void *call_site)
     fsym = ngxt_sym_from_addr((ngx_uint_t) this_fn, &ngxt_ctx, 0);
 
     if (fsym->procname) {
+        /* change process name */
+        ngxt_ctx.procname = fsym->procname;
         ngxt_init_log(fsym->procname);
     }
+
+#if (NGX_THREADS)
+    ngxt_thread_ctx_t *tctx;
+    tctx = ngxt_thread_get_ctx();
+    depth = &tctx->depth;
+#else
+    depth = &ngxt_ctx.depth;
+#endif
+
 
     p = buf;
     last = buf + NGXT_DUMP_BUF_SIZE;
 
-    memset(buf, ' ', ngxt_ctx.depth); /* indentation */
-    p += ngxt_ctx.depth;
+    memset(buf, ' ', *depth); /* indentation */
+    p += *depth;
 
     p = ngxt_sprintf(p, last, "{ %s(", fsym->name);
 
@@ -402,28 +447,38 @@ __cyg_profile_func_enter(void *this_fn, void *call_site)
 
     p = ngxt_sprintf(p, last, "\n");
 
+
     ngxt_logmsg(buf);
 
-    ngxt_ctx.depth++;
+    *depth = *depth + 1; /* gcc warns about unused value if simply '++' */
 }
 
 
 void
 __cyg_profile_func_exit(void *this_fn, void *call_site)
 {
+    ngx_int_t           *depth;
     char                *ptr, *p, *last;
     ngx_uint_t           rv;
     ngxt_func_symbol_t  *fsym;
 
     char  buf[NGXT_DUMP_BUF_SIZE];
 
-    ngxt_ctx.depth--;
+#if (NGX_THREADS)
+    ngxt_thread_ctx_t *tctx;
+    tctx = ngxt_thread_get_ctx();
+    depth = &tctx->depth;
+#else
+    depth = &ngxt_ctx.depth;
+#endif
+
+    *depth = *depth - 1;
 
     p = buf;
     last = buf + NGXT_DUMP_BUF_SIZE;
 
-    memset(buf, ' ', ngxt_ctx.depth);
-    p = buf + ngxt_ctx.depth;
+    memset(buf, ' ', *depth);
+    p = buf + *depth;
 
     fsym = ngxt_sym_from_addr((ngx_uint_t) this_fn, &ngxt_ctx, 0);
 

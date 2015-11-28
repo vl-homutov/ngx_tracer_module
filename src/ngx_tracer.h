@@ -127,9 +127,16 @@ typedef struct ngxt_open_binary_s  ngxt_open_binary_t;
 /* tracer context */
 typedef struct {
     char                     progname[NGXT_PROGNAME_BUFSIZE];
+    const char              *procname;  /* process name: master/worker/... */
     ngx_uint_t               symcount;  /* number of symbols loaded */
+    pid_t                    pid;
+#if (NGX_THREADS)
+    pid_t                    tid;
+#endif
+
     FILE                    *log;       /* trace log file */
     ngx_int_t                depth;     /* indentation */
+
     ngxt_func_symbol_t      *symbols;   /* symbol table (functions only) */
     ngxt_open_binary_t      *ob;        /* opaque pointer to open binary */
     struct timeval           started;   /* start time */
@@ -148,6 +155,17 @@ ngxt_decl char *ngxt_dump_call_location(char *buf, char *last, ngx_uint_t addr,
 
 #if (NGX_HAVE_READELF)
 ngxt_decl ngx_int_t ngxt_readelf(ngxt_ctx_t *ctx);
+#endif
+
+#if (NGX_THREADS)
+
+typedef struct {
+    FILE                    *log;
+    ngx_int_t                depth;
+} ngxt_thread_ctx_t;
+
+ngxt_decl ngxt_thread_ctx_t * ngxt_thread_init_ctx();
+ngxt_decl ngxt_thread_ctx_t * ngxt_thread_get_ctx();
 #endif
 
 #endif

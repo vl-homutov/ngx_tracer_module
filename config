@@ -92,6 +92,9 @@ else
     echo " + tracer: no readelf, arguments decoding is not available"
 fi
 
+if [ $USE_THREADS = YES ]; then
+    NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/src/ngx_tracer_threads.c"
+fi
 
 # skip this function as non-interesting/lowlevel/too verbose
 EXCLUDED_FUNCTIONS="\
