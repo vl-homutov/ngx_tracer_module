@@ -472,7 +472,10 @@ __cyg_profile_func_exit(void *this_fn, void *call_site)
     depth = &ngxt_ctx.depth;
 #endif
 
-    *depth = *depth - 1;
+    if (*depth != 0) {
+        /* exiting function after fork, depth initialized to 0 in new process */
+        *depth = *depth - 1;
+    }
 
     p = buf;
     last = buf + NGXT_DUMP_BUF_SIZE;
