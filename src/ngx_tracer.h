@@ -130,9 +130,6 @@ typedef struct {
     const char              *procname;  /* process name: master/worker/... */
     ngx_uint_t               symcount;  /* number of symbols loaded */
     pid_t                    pid;
-#if (NGX_THREADS)
-    pid_t                    tid;
-#endif
 
     FILE                    *log;       /* trace log file */
     ngx_int_t                depth;     /* indentation */
@@ -162,6 +159,7 @@ ngxt_decl ngx_int_t ngxt_readelf(ngxt_ctx_t *ctx);
 typedef struct {
     FILE                    *log;
     ngx_int_t                depth;
+    pid_t                    tid;
 } ngxt_thread_ctx_t;
 
 ngxt_decl ngxt_thread_ctx_t * ngxt_thread_init_ctx();

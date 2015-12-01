@@ -304,7 +304,7 @@ ngxt_logmsg(char *msg)
             now.tv_sec - ngxt_ctx.started.tv_sec,
             now.tv_usec, (unsigned long) ngxt_ctx.pid,
 #if (NGX_THREADS)
-            (unsigned long) ngxt_ctx.tid,
+            (unsigned long) tctx->tid,
 #endif
             msg);
 

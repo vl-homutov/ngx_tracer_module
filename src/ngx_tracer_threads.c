@@ -49,7 +49,6 @@ void ngxt_thread_create_key()
 ngxt_thread_ctx_t *
 ngxt_thread_init_ctx()
 {
-    pid_t               tid;
     ngxt_thread_ctx_t  *tctx;
 
     char  logfile[NGX_MAX_PATH];
@@ -62,15 +61,14 @@ ngxt_thread_init_ctx()
     tctx->depth = 0;
 
 #if (NGX_LINUX)
-    tid = syscall (SYS_gettid);
-    ngxt_ctx.tid = tid;
+    tctx->tid = syscall (SYS_gettid);
 #else
-    tid = pthread_self();
+    tctx->tid = pthread_self();
 #endif
 
     sprintf(logfile, "%s/logs/trace-%s-%lu-%lu.log", NGX_PREFIX,
                      ngxt_ctx.procname, (unsigned long) getpid(),
-                     (unsigned long) tid);
+                     (unsigned long) tctx->tid);
 
     tctx->log = fopen(logfile, "a+");
     if (tctx->log == NULL) {
